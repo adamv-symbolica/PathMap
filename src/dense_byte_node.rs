@@ -1261,7 +1261,14 @@ impl<V: Clone + Send + Sync, A: Allocator, Cf: CoFree<V=V, A=A>> TrieNode<V, A> 
                 }
                 if !(mask_i < 4) { return (None, None) }
                 if self.mask.0[mask_i] == 0 { continue }
-                n = self.mask.0[mask_i].trailing_zeros() as u8; break;
+                //Moving forward, the first sibling in the new word is its lowest set bit;
+                // moving backward it is the highest
+                n = if next {
+                    self.mask.0[mask_i].trailing_zeros() as u8
+                } else {
+                    (63 - self.mask.0[mask_i].leading_zeros()) as u8
+                };
+                break;
             }
         }
 
@@ -1626,7 +1633,8 @@ where
 /// if there is no next/previous bit, returns the argument position
 /// assumes that pos is active in x
 pub(crate) fn bit_sibling(pos: u8, x: u64, next: bool) -> u8 {
-    debug_assert_ne!((1u64 << pos) & x, 0);
+    //`pos` need not be set in `x`: a zipper focus may sit on a byte that does not exist, and
+    // its siblings are still the set bits on either side of it
     if next {
         if pos == 0 { return 0 } // resolves overflow in shift
         let succ = !0u64 >> (64 - pos);
