@@ -2589,6 +2589,7 @@ pub(crate) mod read_zipper_core {
         }
         fn to_next_k_path_observed<Obs: PathObserver>(&mut self, k: usize, obs: &mut Obs) -> bool {
             timed_span!(ToNextKPath, COUNTERS);
+            self.prepare_buffers();
             let path_len = self.path_len();
             let base_idx = if path_len < k {
                 return k_path_depth_exceeded(self, path_len, obs)
