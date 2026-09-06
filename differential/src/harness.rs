@@ -25,7 +25,7 @@ use pathmap::zipper::*;
 use core::fmt::Write as _;
 
 /// Number of distinct operations. Must match `PathMapModel.Fuzz.nops`.
-pub const NOPS: usize = 56;
+pub const NOPS: usize = 57;
 /// Maximum operations executed. Must match the `maxSteps` default in `Fuzz.run`.
 pub const MAX_STEPS: usize = 256;
 /// Maximum entries in a `dump`. Must match `Fuzz.dumpAt`.
@@ -904,6 +904,18 @@ pub fn run_ops<R: ReadSource>(
                 55 => {
                     let p = get!(d.path(6));
                     ("meet_2", show_status_opt((*rz).do_meet_2(&mut wz, &p)))
+                }
+                56 => {
+                    let _t = get!(d.modn(2));
+                    let k = get!(d.modn(4));
+                    // A single `to_next_k_path` step.  k == 0 is degenerate and
+                    // k > depth has implementation-defined fallback; both skipped.
+                    if k == 0 || k > rz.path().len() {
+                        ("to_next_k_path", "skip".to_string())
+                    } else {
+                        let r = (*rz).to_next_k_path(k);
+                        ("to_next_k_path", show_bool(r).to_string())
+                    }
                 }
                 47 => {
                     let t = get!(d.modn(2));

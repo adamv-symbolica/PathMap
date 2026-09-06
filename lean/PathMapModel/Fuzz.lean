@@ -192,7 +192,7 @@ a following `u8 % 2` byte (`0` = write zipper, `1` = read zipper); ops `27`–`4
 are write-zipper operations. -/
 
 /-- Number of distinct operations.  Must match `NOPS` in `differential/src/harness.rs`. -/
-def nops : Nat := 56
+def nops : Nat := 57
 
 /-- A full `k`-path iteration: `descend_first_k_path` followed by
 `to_next_k_path` until it runs out (capped at 32 stops).  Returns the locations
@@ -503,6 +503,15 @@ def step (s : St) (d : Dec) : Option (St × Dec) := do
                let z := s.wz.graftChildMaps maps ru
                some (emit { s with wz := z } "graft_child_maps"
                  (hexPath mask ++ ":" ++ showBool ru), d)
+  | 56 => do let (_t, d) ← d.mod 2; let (k, d) ← d.mod 4
+             -- A single `to_next_k_path` step from wherever the read zipper is.
+             -- `k = 0` is degenerate (see op 15), and when `k` exceeds the depth the
+             -- crate and this model disagree on the fallback (see `Zip.toNextKPath`),
+             -- so both are skipped; everything else is specified by `kPathFrom`.
+             if k == 0 || k > s.rz.path.length then some (emit s "to_next_k_path" "skip", d)
+             else
+               let (r, z) := s.rz.toNextKPath k
+               some (emit { s with rz := z } "to_next_k_path" (showBool r), d)
   | 55 => do let (p, d) ← d.path
              -- `meet_2` takes two sources; the second is the first moved to `p`.
              if s.act then some (emit s "meet_2" "skip", d) else
