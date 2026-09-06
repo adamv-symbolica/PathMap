@@ -2449,55 +2449,45 @@ impl<V: Clone + Send + Sync, A: Allocator> TrieNode<V, A> for LineListNode<V, A>
 
     fn get_sibling_of_child(&self, key: &[u8], next: bool) -> (Option<u8>, Option<TaggedNodeRef<'_, V, A>>) {
         debug_assert!(key.len() > 0);
+        //The focus `key` need not exist in the node.  Its siblings are the bytes that the node's
+        // keys place at the same depth under the same parent path, on the requested side of the
+        // focus byte; the nearest one wins.
         let last_key_byte_idx = key.len()-1;
         let common_key = &key[..last_key_byte_idx];
+        let cur_byte = key[last_key_byte_idx];
         let (key0, key1) = self.get_both_keys();
-        match next {
-            true => {
-                if starts_with(key0, key) && starts_with(key1, common_key) {
-                    let key1_last_byte = match key1.get(last_key_byte_idx) {
-                        Some(byte) => byte,
-                        None => return (None, None)
-                    };
-                    if key1_last_byte != key.last().unwrap() {
-                        let sib_node = if key1.len() == key.len() && self.is_child_ptr::<1>() {
-                            let sib_node = unsafe{ self.child_in_slot::<1>().as_tagged() };
-                            debug_assert!({ sib_node.as_list().map(|sib_node| validate_node(sib_node)); true});
-                            Some(sib_node)
-                        } else {
-                            None
-                        };
-                        (Some(*key1_last_byte), sib_node)
-                    } else {
-                        (None, None)
-                    }
-                } else {
-                    (None, None)
-                }
-            },
-            false => {
-                if starts_with(key1, key) && starts_with(key0, common_key) {
-                    let key0_last_byte = match key0.get(last_key_byte_idx) {
-                        Some(byte) => byte,
-                        None => return (None, None)
-                    };
-                    if key0_last_byte != key.last().unwrap() {
-                        let sib_node = if key0.len() == key.len() && self.is_child_ptr::<0>() {
-                            let sib_node = unsafe{ self.child_in_slot::<0>().as_tagged() };
-                            debug_assert!({ sib_node.as_list().map(|sib_node| validate_node(sib_node)); true});
-                            Some(sib_node)
-                        } else {
-                            None
-                        };
-                        (Some(*key0_last_byte), sib_node)
-                    } else {
-                        (None, None)
-                    }
-                } else {
-                    (None, None)
-                }
+        let candidate = |k: &[u8]| -> Option<u8> {
+            if k.len() > last_key_byte_idx && starts_with(k, common_key) {
+                let b = k[last_key_byte_idx];
+                if (next && b > cur_byte) || (!next && b < cur_byte) { return Some(b) }
             }
-        }
+            None
+        };
+        let c0 = if self.is_used::<0>() { candidate(key0) } else { None };
+        let c1 = if self.is_used::<1>() { candidate(key1) } else { None };
+        let better = |a: u8, b: u8| if next { a < b } else { a > b };
+        let (sib_byte, slot) = match (c0, c1) {
+            (None, None) => return (None, None),
+            (Some(b), None) => (b, 0),
+            (None, Some(b)) => (b, 1),
+            (Some(b0), Some(b1)) => if better(b0, b1) || b0 == b1 { (b0, 0) } else { (b1, 1) },
+        };
+        //An onward link exists at the sibling only when a slot's whole key is the sibling path
+        let sib_node = if slot == 0 {
+            if key0.len() == key.len() && self.is_child_ptr::<0>() {
+                Some(unsafe{ self.child_in_slot::<0>().as_tagged() })
+            } else if self.is_used::<1>() && key1.len() == key.len() && key1[last_key_byte_idx] == sib_byte
+                && starts_with(key1, common_key) && self.is_child_ptr::<1>() {
+                //Identical keys: the value sits in slot 0 and the onward link in slot 1
+                Some(unsafe{ self.child_in_slot::<1>().as_tagged() })
+            } else { None }
+        } else {
+            if key1.len() == key.len() && self.is_child_ptr::<1>() {
+                Some(unsafe{ self.child_in_slot::<1>().as_tagged() })
+            } else { None }
+        };
+        debug_assert!({ sib_node.map(|n| n.as_list().map(|n| validate_node(n))); true });
+        (Some(sib_byte), sib_node)
     }
 
     fn get_node_at_key(&self, key: &[u8]) -> AbstractNodeRef<'_, V, A> {
