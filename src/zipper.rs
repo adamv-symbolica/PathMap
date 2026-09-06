@@ -3067,8 +3067,14 @@ pub(crate) mod read_zipper_core {
                     if key_start < base_idx {
                         let base_key_len = base_idx - key_start;
                         if base_key_len > key_bytes.len() || &key_bytes[..base_key_len] != &self.prefix_buf[key_start..base_idx] {
+                            //The focus returns to the base.  `focus_iter_token` still describes the
+                            // position at `prefix_buf.len()`, so bring it back with the focus
+                            let excess = self.prefix_buf.len() - base_idx;
                             obs.ascend(self.prefix_buf.len().saturating_sub(base_idx.max(obs_floor)));
                             self.prefix_buf.truncate(base_idx);
+                            if excess > 0 {
+                                self.reascend_iter_token(excess);
+                            }
                             return false;
                         }
                     }
