@@ -2276,10 +2276,10 @@ pub(crate) mod read_zipper_core {
 
         fn to_next_sibling_byte(&mut self) -> Option<u8> {
             timed_span!(ToNextSiblingByte, COUNTERS);
+            self.prepare_buffers();
             if self.at_root() {
                 return None;
             }
-            self.prepare_buffers();
             if self.prefix_buf.len() == 0 {
                 return None
             }
@@ -2348,6 +2348,7 @@ pub(crate) mod read_zipper_core {
 
         fn ascend(&mut self, steps: usize) -> usize {
             timed_span!(Ascend, COUNTERS);
+            self.prepare_buffers();
             debug_assert!(self.is_regularized());
             let mut remaining = steps;
             while remaining > 0 {
@@ -2376,6 +2377,7 @@ pub(crate) mod read_zipper_core {
 
         fn ascend_byte(&mut self) -> bool {
             timed_span!(AscendByte, COUNTERS);
+            self.prepare_buffers();
             debug_assert!(self.is_regularized());
             if self.excess_key_len() == 0 {
                 match self.ancestors.pop() {
@@ -2397,6 +2399,7 @@ pub(crate) mod read_zipper_core {
 
         fn ascend_until(&mut self) -> usize {
             timed_span!(AscendUntil, COUNTERS);
+            self.prepare_buffers();
             debug_assert!(self.is_regularized());
             if self.at_root() {
                 return 0;
@@ -2416,6 +2419,7 @@ pub(crate) mod read_zipper_core {
 
         fn ascend_until_branch(&mut self) -> usize {
             timed_span!(AscendUntilBranch, COUNTERS);
+            self.prepare_buffers();
             debug_assert!(self.is_regularized());
             if self.at_root() {
                 return 0;
@@ -2989,10 +2993,10 @@ pub(crate) mod read_zipper_core {
         /// Internal implementation of `to_next_sibling_byte` / `to_prev_sibling_byte`.
         #[inline]
         fn to_sibling(&mut self, next: bool) -> Option<u8> {
+            self.prepare_buffers();
             if self.at_root() {
                 return None;
             }
-            self.prepare_buffers();
             debug_assert!(self.is_regularized());
             if self.node_key().len() != 0 {
                 match self.focus_node.get_sibling_of_child(self.node_key(), next) {
