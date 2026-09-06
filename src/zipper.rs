@@ -2850,8 +2850,6 @@ pub(crate) mod read_zipper_core {
                 };
 
                 if new_tok != NODE_ITER_FINISHED {
-                    self.focus_iter_token = new_tok;
-
                     let key_start = self.node_key_start();
 
                     //Make sure we don't move to a branch that forks above our zipper root
@@ -2862,11 +2860,19 @@ pub(crate) mod read_zipper_core {
                         let unmodifiable_len = origin_path_len - key_start;
                         let unmodifiable_subkey = &self.prefix_buf[key_start..origin_path_len];
                         if unmodifiable_len > key_bytes.len() || &key_bytes[..unmodifiable_len] != unmodifiable_subkey {
-                            obs.ascend(self.prefix_buf.len() - origin_path_len);
+                            //The focus returns to the zipper root.  `focus_iter_token` still describes
+                            // the position at `prefix_buf.len()`, so bring it back with the focus
+                            // rather than adopting the token of an item outside the root
+                            let excess = self.prefix_buf.len() - origin_path_len;
+                            obs.ascend(excess);
                             self.prefix_buf.truncate(origin_path_len);
+                            if excess > 0 {
+                                self.reascend_iter_token(excess);
+                            }
                             return None
                         }
                     }
+                    self.focus_iter_token = new_tok;
 
                     //The truncate may rewind past `origin_path_len`, but the bytes below the root are
                     //re-supplied identically by `key_bytes` (checked above), so the focus stays at or
